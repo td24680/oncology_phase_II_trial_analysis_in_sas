@@ -1,27 +1,25 @@
-/*-------------------------------------------------
-  Create Table 1: Baseline Characteristics
--------------------------------------------------*/
+* Create Table 1: Baseline Characteristics;
 
-/* 1. Import analysis dataset */
-proc import datafile="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/data/analysis/subject_level_analysis.csv"
+* Load project setup;
+%include "/home/u64449610/oncology_phase_II_trial_analysis/scripts/00_setup.sas";
+
+title;
+footnote;
+
+* 1. Import analysis dataset;
+proc import datafile="&proj/data/analysis/subject_level_analysis.csv"
     out=adsl
     dbms=csv
     replace;
     guessingrows=max;
 run;
 
-
-/*-------------------------------------------------
-  2. Patient counts
--------------------------------------------------*/
+* 2. Patient counts; 
 proc freq data=adsl noprint;
     tables treatment_group / out=patient_counts(drop=percent);
 run;
 
-
-/*-------------------------------------------------
-  3. Age summary: mean (SD)
--------------------------------------------------*/
+* 3. Age summary: mean (SD); 
 proc means data=adsl noprint mean std;
     class treatment_group;
     var age;
@@ -30,22 +28,22 @@ run;
 
 data age_summary;
     set age_stats;
-    where _TYPE_ = 1;   /* keep only treatment group summaries */
+    where _TYPE_ = 1;
     length age_mean_sd $30;
-    age_mean_sd = cats(put(round(mean_age, 0.1), 5.1), " (",
-                       put(round(sd_age, 0.1), 5.1), ")");
+    age_mean_sd = cats(
+        put(round(mean_age, 0.1), 5.1),
+        " (",
+        put(round(sd_age, 0.1), 5.1),
+        ")"
+    );
     keep treatment_group age_mean_sd;
 run;
 
-
-/*-------------------------------------------------
-  4. Sex summary: n (%)
--------------------------------------------------*/
+* 4. Sex summary: n (%);
 proc freq data=adsl noprint;
     tables treatment_group*sex / out=sex_counts;
 run;
 
-/* total N by treatment group */
 proc sql;
     create table total_by_group as
     select treatment_group,
@@ -54,7 +52,6 @@ proc sql;
     group by treatment_group;
 quit;
 
-/* merge totals and create summary string */
 proc sort data=sex_counts;
     by treatment_group;
 run;
@@ -72,10 +69,7 @@ data sex_summary;
     keep treatment_group sex summary;
 run;
 
-
-/*-------------------------------------------------
-  5. Baseline tumor size summary: mean (SD)
--------------------------------------------------*/
+* 5. Baseline tumor size summary: mean (SD);
 proc means data=adsl noprint mean std;
     class treatment_group;
     var baseline_tumor_size_mm;
@@ -86,15 +80,16 @@ data tumor_summary;
     set tumor_stats;
     where _TYPE_ = 1;
     length baseline_tumor_mean_sd $30;
-    baseline_tumor_mean_sd = cats(put(round(mean_tumor, 0.1), 6.1), " (",
-                                  put(round(sd_tumor, 0.1), 6.1), ")");
+    baseline_tumor_mean_sd = cats(
+        put(round(mean_tumor, 0.1), 6.1),
+        " (",
+        put(round(sd_tumor, 0.1), 6.1),
+        ")"
+    );
     keep treatment_group baseline_tumor_mean_sd;
 run;
 
-
-/*-------------------------------------------------
-  6. Create empty Table 1 structure
--------------------------------------------------*/
+* 6. Create empty Table 1 structure;
 data table1;
     length variable $50 DrugA $30 Placebo $30;
     input variable $char50.;
@@ -107,11 +102,8 @@ Female, n (%)
 ;
 run;
 
-
-/*-------------------------------------------------
-  7. Fill in patient counts
--------------------------------------------------*/
-proc sql;
+* 7. Fill in patient counts;
+proc sql noprint;
     select count into :drugA_n trimmed
     from patient_counts
     where treatment_group = "DrugA";
@@ -124,16 +116,13 @@ quit;
 data table1;
     set table1;
     if variable = "Number of patients" then do;
-        DrugA = "&drugA_n";
-        Placebo = "&placebo_n";
+        DrugA   = coalescec("&drugA_n","0");
+        Placebo = coalescec("&placebo_n","0");
     end;
 run;
 
-
-/*-------------------------------------------------
-  8. Fill in age summary
--------------------------------------------------*/
-proc sql;
+* 8. Fill in age summary;
+proc sql noprint;
     select age_mean_sd into :drugA_age trimmed
     from age_summary
     where treatment_group = "DrugA";
@@ -146,16 +135,13 @@ quit;
 data table1;
     set table1;
     if variable = "Age, mean (SD)" then do;
-        DrugA = "&drugA_age";
-        Placebo = "&placebo_age";
+        DrugA   = coalescec("&drugA_age","");
+        Placebo = coalescec("&placebo_age","");
     end;
 run;
 
-
-/*-------------------------------------------------
-  9. Fill in baseline tumor summary
--------------------------------------------------*/
-proc sql;
+* 9. Fill in baseline tumor summary;
+proc sql noprint;
     select baseline_tumor_mean_sd into :drugA_tumor trimmed
     from tumor_summary
     where treatment_group = "DrugA";
@@ -168,16 +154,13 @@ quit;
 data table1;
     set table1;
     if variable = "Baseline tumor size (mm), mean (SD)" then do;
-        DrugA = "&drugA_tumor";
-        Placebo = "&placebo_tumor";
+        DrugA   = coalescec("&drugA_tumor","");
+        Placebo = coalescec("&placebo_tumor","");
     end;
 run;
 
-
-/*-------------------------------------------------
-  10. Fill in male summary
--------------------------------------------------*/
-proc sql;
+* 10. Fill in male summary;
+proc sql noprint;
     select summary into :drugA_male trimmed
     from sex_summary
     where treatment_group = "DrugA" and sex = "Male";
@@ -190,16 +173,13 @@ quit;
 data table1;
     set table1;
     if variable = "Male, n (%)" then do;
-        DrugA = "&drugA_male";
-        Placebo = "&placebo_male";
+        DrugA   = coalescec("&drugA_male","0 (0.0%)");
+        Placebo = coalescec("&placebo_male","0 (0.0%)");
     end;
 run;
 
-
-/*-------------------------------------------------
-  11. Fill in female summary
--------------------------------------------------*/
-proc sql;
+* 11. Fill in female summary;
+proc sql noprint;
     select summary into :drugA_female trimmed
     from sex_summary
     where treatment_group = "DrugA" and sex = "Female";
@@ -212,24 +192,21 @@ quit;
 data table1;
     set table1;
     if variable = "Female, n (%)" then do;
-        DrugA = "&drugA_female";
-        Placebo = "&placebo_female";
+        DrugA   = coalescec("&drugA_female","0 (0.0%)");
+        Placebo = coalescec("&placebo_female","0 (0.0%)");
     end;
 run;
 
-
-/*-------------------------------------------------
-  12. Print Table 1
--------------------------------------------------*/
-proc print data=table1 noobs;
+* 12. Print Table 1;
+title "Table 1. Baseline Characteristics";
+proc print data=table1 noobs label;
 run;
 
-
-/*-------------------------------------------------
-  13. Export Table 1
--------------------------------------------------*/
+* 13. Export Table 1;
 proc export data=table1
-    outfile="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/outputs/tables/table1_baseline_characteristics.csv"
+    outfile="&proj/outputs/tables/table1_baseline_characteristics.csv"
     dbms=csv
     replace;
 run;
+
+%put NOTE: Table 1 generation completed.;

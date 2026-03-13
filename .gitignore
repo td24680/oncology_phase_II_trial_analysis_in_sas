@@ -1,0 +1,4 @@
+outputs/
+*.log
+*.lst
+.DS_Store

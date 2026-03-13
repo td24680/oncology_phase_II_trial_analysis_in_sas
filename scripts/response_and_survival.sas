@@ -1,35 +1,34 @@
-/*========================================================
-  Response summary + Kaplan-Meier survival analysis
-========================================================*/
+* Response summary + Kaplan-Meier survival analysis;
 
-/*--------------------------------------------------------
-  1. Read datasets
---------------------------------------------------------*/
-proc import datafile="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/data/analysis/subject_level_analysis.csv"
+* Load project setup;
+%include "/home/your_username/oncology_phase_II_trial_analysis/scripts/00_setup.sas";
+
+title;
+footnote;
+
+* 1. Import datasets;
+proc import datafile="&proj/data/analysis/subject_level_analysis.csv"
     out=adsl
     dbms=csv
     replace;
     guessingrows=max;
 run;
 
-proc import datafile="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/data/analysis/time_to_event_analysis.csv"
+proc import datafile="&proj/data/analysis/time_to_event_analysis.csv"
     out=tte
     dbms=csv
     replace;
     guessingrows=max;
 run;
 
+* 2. Response summary table;
 
-/*--------------------------------------------------------
-  2. Response summary table
---------------------------------------------------------*/
-
-/* Count response by treatment group */
+* Count response by treatment group;
 proc freq data=adsl noprint;
     tables treatment_group*best_overall_response / out=response_counts_raw;
 run;
 
-/* Total n by treatment group */
+* Total n by treatment group; 
 proc sql;
     create table total_by_group as
     select treatment_group,
@@ -38,7 +37,7 @@ proc sql;
     group by treatment_group;
 quit;
 
-/* Merge totals and create summary */
+* Merge totals and create summary; 
 proc sort data=response_counts_raw;
     by treatment_group;
 run;
@@ -56,8 +55,7 @@ data response_counts;
     keep treatment_group best_overall_response summary count total_n;
 run;
 
-
-/* Create empty response table */
+* Create empty response table; 
 data response_table;
     length response $20 DrugA $20 Placebo $20;
     input response $char20.;
@@ -70,8 +68,7 @@ ORR (CR + PR)
 ;
 run;
 
-
-/* Fill CR */
+* Fill CR;
 proc sql noprint;
     select summary into :drugA_cr trimmed
     from response_counts
@@ -85,13 +82,12 @@ quit;
 data response_table;
     set response_table;
     if response = "CR" then do;
-        DrugA = "&drugA_cr";
-        Placebo = "&placebo_cr";
+        DrugA   = coalescec("&drugA_cr","0 (0.0%)");
+        Placebo = coalescec("&placebo_cr","0 (0.0%)");
     end;
 run;
 
-
-/* Fill PR */
+* Fill PR;
 proc sql noprint;
     select summary into :drugA_pr trimmed
     from response_counts
@@ -105,13 +101,12 @@ quit;
 data response_table;
     set response_table;
     if response = "PR" then do;
-        DrugA = "&drugA_pr";
-        Placebo = "&placebo_pr";
+        DrugA   = coalescec("&drugA_pr","0 (0.0%)");
+        Placebo = coalescec("&placebo_pr","0 (0.0%)");
     end;
 run;
 
-
-/* Fill SD */
+* Fill SD; 
 proc sql noprint;
     select summary into :drugA_sd trimmed
     from response_counts
@@ -125,13 +120,12 @@ quit;
 data response_table;
     set response_table;
     if response = "SD" then do;
-        DrugA = "&drugA_sd";
-        Placebo = "&placebo_sd";
+        DrugA   = coalescec("&drugA_sd","0 (0.0%)");
+        Placebo = coalescec("&placebo_sd","0 (0.0%)");
     end;
 run;
 
-
-/* Fill PD */
+* Fill PD; 
 proc sql noprint;
     select summary into :drugA_pd trimmed
     from response_counts
@@ -145,13 +139,12 @@ quit;
 data response_table;
     set response_table;
     if response = "PD" then do;
-        DrugA = "&drugA_pd";
-        Placebo = "&placebo_pd";
+        DrugA   = coalescec("&drugA_pd","0 (0.0%)");
+        Placebo = coalescec("&placebo_pd","0 (0.0%)");
     end;
 run;
 
-
-/* Calculate ORR = CR + PR */
+* Calculate ORR = CR + PR;
 proc sql;
     create table orr_counts as
     select treatment_group,
@@ -173,7 +166,7 @@ data orr_counts;
     summary = cats(n, " (", put(percent, 5.1), "%)");
 run;
 
-/* Fill ORR row */
+* Fill ORR row;
 proc sql noprint;
     select summary into :drugA_orr trimmed
     from orr_counts
@@ -187,44 +180,32 @@ quit;
 data response_table;
     set response_table;
     if response = "ORR (CR + PR)" then do;
-        DrugA = "&drugA_orr";
-        Placebo = "&placebo_orr";
+        DrugA   = coalescec("&drugA_orr","0 (0.0%)");
+        Placebo = coalescec("&placebo_orr","0 (0.0%)");
     end;
 run;
 
-
-/* Print response table */
+* Print response table;
 title "Response Summary Table";
 proc print data=response_table noobs;
 run;
 
-/* Save response table */
+* Save response table;
 proc export data=response_table
-    outfile="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/outputs/tables/response_summary_table.csv"
+    outfile="&proj/outputs/tables/response_summary_table.csv"
     dbms=csv
     replace;
 run;
 
-
-/*--------------------------------------------------------
-  3. Kaplan-Meier analysis - PFS
---------------------------------------------------------*/
+* 3. Kaplan-Meier analysis - PFS;
 data pfs_data;
     set tte;
     where endpoint = "PFS";
-    event = 1 - censor_flag;
 run;
 
 ods graphics on;
-
-title "Kaplan-Meier Curve for PFS";
-proc lifetest data=pfs_data plots=survival(cb=hw test);
-    time time_in_days* censor_flag(1);
-    strata treatment_group;
-run;
-
+ods listing gpath="&proj/outputs/figures";
 ods graphics / reset imagename="kaplan_meier_pfs" imagefmt=png;
-ods listing gpath="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/outputs/figures";
 
 title "Kaplan-Meier Curve for PFS";
 proc lifetest data=pfs_data plots=survival(cb=hw test);
@@ -232,18 +213,13 @@ proc lifetest data=pfs_data plots=survival(cb=hw test);
     strata treatment_group;
 run;
 
-
-/*--------------------------------------------------------
-  4. Kaplan-Meier analysis - OS
---------------------------------------------------------*/
+* 4. Kaplan-Meier analysis - OS;
 data os_data;
     set tte;
     where endpoint = "OS";
-    event = 1 - censor_flag;
 run;
 
 ods graphics / reset imagename="kaplan_meier_os" imagefmt=png;
-ods listing gpath="/Users/hongtuoi/python-learning/oncology_phase_II_trial_analysis/outputs/figures";
 
 title "Kaplan-Meier Curve for OS";
 proc lifetest data=os_data plots=survival(cb=hw test);
@@ -253,3 +229,6 @@ run;
 
 ods graphics off;
 title;
+footnote;
+
+%put NOTE: Response summary and survival analysis completed.;
