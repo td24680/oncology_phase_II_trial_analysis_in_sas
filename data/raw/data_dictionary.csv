@@ -1,0 +1,6 @@
+"dataset_name","description"
+"demographics","Patient demographic and treatment assignment information"
+"tumor_measurements","Tumor size measurements collected at each study visit"
+"adverse_events","Adverse events reported during the study"
+"subject_level_analysis","Subject-level analysis dataset used for baseline summaries and response analysis"
+"time_to_event_analysis","Time-to-event dataset used for progression-free survival and overall survival analysis"
